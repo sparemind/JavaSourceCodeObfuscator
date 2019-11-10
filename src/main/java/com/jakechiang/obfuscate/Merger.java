@@ -6,6 +6,7 @@ import spoon.refactoring.CtRenameGenericVariableRefactoring;
 import spoon.refactoring.CtRenameLocalVariableRefactoring;
 import spoon.refactoring.Refactoring;
 import spoon.refactoring.RefactoringException;
+import spoon.reflect.code.CtLiteral;
 import spoon.reflect.code.CtLocalVariable;
 import spoon.reflect.declaration.CtClass;
 import spoon.reflect.declaration.CtField;
@@ -146,6 +147,68 @@ public class Merger {
     }
 
     /**
+     * Renames all methods ina given list to random obfuscated names. Functions
+     * named "main" will not be obfuscated.
+     *
+     * @param methods The methods whose names to obfuscate.
+     */
+    private static void renameMethods(List<CtMethod> methods) {
+        // Rename top level methods
+        Map<CtMethod, Collection> methodTopDefinitions = new HashMap<>();
+        for (CtMethod method : methods) {
+            if (method.getSimpleName().equals("main")) {
+                continue;
+            }
+            Collection topDefinitions = method.getTopDefinitions();
+            methodTopDefinitions.put(method, topDefinitions);
+
+            if (topDefinitions.isEmpty()) {
+                Refactoring.changeMethodName(method, obfuscatedName());
+            }
+        }
+        // Rename overriding methods to match the name of their parent
+        for (CtMethod method : methods) {
+            Collection topDefinitions = methodTopDefinitions.get(method);
+            if (topDefinitions != null && !topDefinitions.isEmpty()) {
+                Refactoring.changeMethodName(method, ((CtMethod) topDefinitions.iterator().next()).getSimpleName());
+            }
+        }
+    }
+
+    /**
+     * Returns a mapping of string literal values enclosed in double quotes (")
+     * to a string of obfuscated code that produces the same string literals.
+     * The strings are formatted such that
+     *
+     * @param literals The literals to make obfuscations for. Any literals that
+     *                 are not string literals will be ignored.
+     * @return A mapping of string literal values to string of obfuscated code
+     * that produces the same string literals.
+     */
+    private static Map<String, String> getStringLiteralObfuscations(List<CtLiteral> literals) {
+        Map<String, String> obfuscations = new HashMap<>();
+        for (CtLiteral literal : literals) {
+            Object value = literal.getValue();
+            if (value == null) {
+                continue;
+            }
+            if (value.getClass().equals(String.class)) {
+                StringBuilder sb = new StringBuilder();
+                String stringValue = value.toString();
+                if (stringValue.isEmpty()) {
+                    continue;
+                }
+                for (int i = 0; i < stringValue.length() - 1; i++) {
+                    sb.append('"').append(stringValue.charAt(i)).append("\"+");
+                }
+                sb.append('"').append(stringValue.charAt(stringValue.length() - 1)).append('"');
+                obfuscations.put('"' + stringValue + '"', sb.toString());
+            }
+        }
+        return obfuscations;
+    }
+
+    /**
      * Merges the .java files found in a give source root directory into a
      * single file and obfuscates the code by randomly obfuscating the names of
      * all classes, interfaces, methods, fields, and variables.
@@ -178,6 +241,10 @@ public class Merger {
         launcher.setSourceOutputDirectory(tmpOutputPath);
         launcher.buildModel();
 
+        List<CtLiteral> literals = rootPackage.getElements(new TypeFilter<>(CtLiteral.class));
+        System.out.println("# Literals: " + literals.size());
+        Map<String, String> stringLiteralObfuscations = getStringLiteralObfuscations(literals);
+
         List<CtLocalVariable> localVariables = rootPackage.getElements(new TypeFilter<>(CtLocalVariable.class));
         System.out.println("# Local Variables: " + localVariables.size());
         renameLocalVariables(localVariables);
@@ -192,26 +259,7 @@ public class Merger {
 
         List<CtMethod> methods = rootPackage.getElements(new TypeFilter<>(CtMethod.class));
         System.out.println("# Methods: " + methods.size());
-        // Rename top level methods
-        Map<CtMethod, Collection> methodTopDefinitions = new HashMap<>();
-        for (CtMethod method : methods) {
-            if (method.getSimpleName().equals("main")) {
-                continue;
-            }
-            Collection topDefinitions = method.getTopDefinitions();
-            methodTopDefinitions.put(method, topDefinitions);
-
-            if (topDefinitions.isEmpty()) {
-                Refactoring.changeMethodName(method, obfuscatedName());
-            }
-        }
-        // Rename overriding methods to match the name of their parent
-        for (CtMethod method : methods) {
-            Collection topDefinitions = methodTopDefinitions.get(method);
-            if (topDefinitions != null && !topDefinitions.isEmpty()) {
-                Refactoring.changeMethodName(method, ((CtMethod) topDefinitions.iterator().next()).getSimpleName());
-            }
-        }
+        renameMethods(methods);
 
         List<CtClass> classes = rootPackage.getElements(new TypeFilter<>(CtClass.class));
         List<CtInterface> interfaces = rootPackage.getElements(new TypeFilter<>(CtInterface.class));
@@ -309,20 +357,26 @@ public class Merger {
                     sb.append('\n');
                     continue;
                 }
-                if (trimmedLine.startsWith("package") || trimmedLine.contains("@java.lang.Override")) {
+                if (trimmedLine.startsWith("package") || trimmedLine.equals("@java.lang.Override")) {
                     continue;
+                }
+                if (line.contains("\"")) {
+                    // Obfuscate string literals
+                    for (Map.Entry<String, String> obfuscation : stringLiteralObfuscations.entrySet()) {
+                        line = line.replace(obfuscation.getKey(), obfuscation.getValue());
+                    }
                 }
                 line = line.replaceFirst("public class", "class");
                 line = line.replaceFirst("public interface", "interface");
                 for (String oldName : sortedClassNameStrings) {
                     if (classNames.containsKey(oldName)) {
-                        line = line.replaceAll(oldName, classNames.get(oldName));
+                        line = line.replace(oldName, classNames.get(oldName));
                     } else {
-                        line = line.replaceAll(oldName, interfaceNames.get(oldName));
+                        line = line.replace(oldName, interfaceNames.get(oldName));
                     }
                     if (line.contains(".this.")) {
                         for (String simpleName : sortedClassSimpleNames) {
-                            line = line.replaceAll(simpleName + "\\.this\\.", classNewNames.get(simpleName) + ".this.");
+                            line = line.replace(simpleName + ".this.", classNewNames.get(simpleName) + ".this.");
                         }
                     }
                 }
