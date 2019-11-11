@@ -31,30 +31,37 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.Stack;
 
+/**
+ * This class provides a utility for obfuscating and merging .java source code
+ * files.
+ */
 public class Merger {
     private static final String TEMP_OUTPUT = "/tmp/obfuscation";
+    // Number of expected renames. This many names will be randomly pre-allocated
     private static final int NUM_RENAMES = 10000;
-    // Holds
-    private static final int[] randomIndices = new int[NUM_RENAMES];
+    // Max+1 number of characters that can be added on either side of a string literal in obfuscation
+    private static final int STRING_PADDING = 5;
+    private static final int[] RANDOM_INDICES = new int[NUM_RENAMES];
+    private static final Random rand = new Random();
     private static int renameCounter = 0;
 
+    // Initialize a random array of unique integers in the range [0,NUM_RENAMES)
     static {
-        for (int i = 0; i < randomIndices.length; i++) {
-            randomIndices[i] = i;
+        for (int i = 0; i < RANDOM_INDICES.length; i++) {
+            RANDOM_INDICES[i] = i;
         }
         // Fisher-Yates shuffle
-        Random rand = new Random();
-        for (int i = randomIndices.length - 1; i > 0; i--) {
+        for (int i = RANDOM_INDICES.length - 1; i > 0; i--) {
             int j = rand.nextInt(i + 1);
-            int tmp = randomIndices[j];
-            randomIndices[j] = randomIndices[i];
-            randomIndices[i] = tmp;
+            int tmp = RANDOM_INDICES[j];
+            RANDOM_INDICES[j] = RANDOM_INDICES[i];
+            RANDOM_INDICES[i] = tmp;
         }
     }
 
     /**
      * Returns unique obfuscated name corresponding to a given index. If the
-     * index is < than {@link #randomIndices} it will be a random
+     * index is < than {@link #RANDOM_INDICES} it will be a random
      * correspondence, otherwise it will be a name based on converting the
      * given index to an alphabetic radix.
      *
@@ -83,7 +90,7 @@ public class Merger {
      */
     private static String obfuscatedName() {
         if (renameCounter < NUM_RENAMES) {
-            return obfuscatedName(randomIndices[renameCounter++]);
+            return obfuscatedName(RANDOM_INDICES[renameCounter++]);
         } else {
             return obfuscatedName(renameCounter++);
         }
@@ -198,10 +205,21 @@ public class Merger {
                 if (stringValue.isEmpty()) {
                     continue;
                 }
-                for (int i = 0; i < stringValue.length() - 1; i++) {
-                    sb.append('"').append(stringValue.charAt(i)).append("\"+");
+                // Pad the string on either end with a random number of chars
+                int prePadding = rand.nextInt(STRING_PADDING);
+                int postPadding = rand.nextInt(STRING_PADDING);
+                StringBuilder paddedValue = new StringBuilder();
+                for (int i = 0; i < prePadding; i++) {
+                    paddedValue.append('a');
                 }
-                sb.append('"').append(stringValue.charAt(stringValue.length() - 1)).append('"');
+                paddedValue.append(stringValue);
+                for (int i = 0; i < postPadding; i++) {
+                    paddedValue.append('a');
+                }
+                String b64 = new String(java.util.Base64.getEncoder().encode(paddedValue.toString().getBytes()));
+
+                sb.append("new String(java.util.Base64.getDecoder().decode(\"").append(b64);
+                sb.append("\")).substring(").append(prePadding).append(",").append(paddedValue.length() - postPadding).append(")");
                 obfuscations.put('"' + stringValue + '"', sb.toString());
             }
         }
@@ -226,7 +244,7 @@ public class Merger {
         // Create empty directory for temporary files
         String tmpOutputPath = TEMP_OUTPUT;
         File tmpOutput = new File(tmpOutputPath);
-        for (int i = 0; tmpOutput.exists(); i++) {
+        for (int i = 0; tmpOutput.exists() || tmpOutput.isFile(); i++) {
             tmpOutputPath = TEMP_OUTPUT + i;
             tmpOutput = new File(tmpOutputPath);
         }
