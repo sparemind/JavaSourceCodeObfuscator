@@ -12,3 +12,24 @@ dependencies {
     implementation 'fr.inria.gforge.spoon:spoon-core:8.0.0-beta-1'
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
+
+jar {
+    manifest {
+        attributes "Main-Class": "com.jakechiang.obfuscate.Main"
+    }
+}
+
+task fatJar(type: Jar) {
+    manifest.from jar.manifest
+    classifier = 'all'
+    from {
+        compileJava.classpath.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    with jar
+}

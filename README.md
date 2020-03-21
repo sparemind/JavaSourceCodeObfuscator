@@ -14,6 +14,10 @@ same code multiple times will yield different results.
 This utility supports inheritance, duplicate class names, and method
 overloading.
 
+## Usage ##
+Run the `fatJar` gradle task to build. The `.jar` artifact will be in the
+`build/libs/` directory. Execute as `java -jar <Obfuscate.jar> <source_root> <output_file>`.
+
 ## Instructions ##
 For best results the source code should be in a package with a unique
 name. Note that in some certain cases instances of `this()` in
