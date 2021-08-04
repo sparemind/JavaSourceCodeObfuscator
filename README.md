@@ -26,8 +26,8 @@ This can be fixed by simply renaming the method call back to `this`.
 
 ## Examples ##
 The following are example outputs that this utility can produce.
-1. This utility: [ObfuscatedMerger.java](https://gist.github.com/veylence/c9513bb60023c36fbe13bbb18866a00a)
-2. My [pathfinding algorithm comparison](https://github.com/veylence/PathfindingComparison) visualization: [ObfuscatedPathfindingComparison.java](https://gist.github.com/veylence/a9d65cc31a4fb018c84b2d507a18e482)
+1. This utility: [ObfuscatedMerger.java](https://gist.github.com/sparemind/c9513bb60023c36fbe13bbb18866a00a)
+2. My [pathfinding algorithm comparison](https://github.com/sparemind/PathfindingComparison) visualization: [ObfuscatedPathfindingComparison.java](https://gist.github.com/sparemind/a9d65cc31a4fb018c84b2d507a18e482)
 3. FizzBuzz:
 
 **Before**
